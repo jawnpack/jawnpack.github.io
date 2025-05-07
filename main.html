@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>TCG Scalping Wars</title>
+  <link rel="stylesheet" href="gamestyle.css">
+</head>
+<body>
+  <div class="container">
+    <h1>TCG Scalper Emulator</h1>
+    <h2>Day: <span id="day">1</span></h2>
+    <div class="stats-inventory">
+      <p>Current Location: <span id="location">Local Game Store</span></p>
+      <p>Money: $<span id="money">1000.00</span></p>
+      <h3>Your Inventory</h3>
+      <ul id="inventory-list"></ul>
+    </div>
+
+    <div>
+      <h3>Rumors from your favorite content creator:</h3>
+      <p id="rumor">None yet...</p>
+    </div>
+  </div>
+
+    <div class="locations">
+      <h3>Buy Locations</h3>
+      <button onclick="travel('Local Game Store')">Local Game Store</button>
+      <button onclick="travel('Cost-Mart')">Cost-Mart</button>
+      <button onclick="travel('eCommerce Store')">eCommerce Store</button>
+    </div>
+
+    <div class="locations">
+      <h3>Sell Locations</h3>
+      <button onclick="travel('The Marketplace')">The Marketplace</button>
+      <button onclick="travel('TCG Convention')">TCG Convention</button>
+    </div>
+
+    <div class="market-locations">
+      <h3>Market (<span id="market-location">Local Game Store</span>)</h3>
+      <table id="market-table">
+        <!-- Populated dynamically -->
+      </table>
+    </div>
+
+    <div class="online-store">
+      <h3>Online Store Listings</h3>
+      <form onsubmit="event.preventDefault(); createListing();">
+        <select id="listing-product"></select>
+        <input type="number" id="listing-price" placeholder="Price" step="0.01">
+        <input type="number" id="listing-quantity" placeholder="Quantity">
+        <button type="submit">List</button>
+      </form>
+      <table id="listing-table">
+        <thead>
+          <tr>
+            <th>Product</th>
+            <th>Price</th>
+            <th>Quantity</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Populated dynamically -->
+        </tbody>
+      </table>
+
+      <h4>Manage Listings</h4>
+      <table id="online-listings-table">
+        <thead>
+          <tr>
+            <th>Product</th>
+            <th>Qty</th>
+            <th>Price</th>
+            <th>Days Listed</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="online-listings-body">
+          <!-- Filled dynamically -->
+        </tbody>
+      </table>
+    </div>
+
+  <div class="next-day">
+    <button onclick="nextDay()">Next Day</button>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
