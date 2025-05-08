@@ -66,6 +66,19 @@ h1 {
   text-align: center;
 }
 
+.next-day {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 10px;
+}
+
+.next-day button {
+  font-size: 0.9rem;
+  padding: 12px 24px;
+  min-width: 200px;
+}
+
 button {
   background-color: #ffcccb;
   border: 2px solid #222;
@@ -132,6 +145,11 @@ ul {
   .container {
     padding: 5px;
     border-width: 3px;
+  }
+  
+  .next-day button {
+    min-width: 80%;
+    font-size: 0.7rem;
   }
 }
 
