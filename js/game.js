@@ -28,7 +28,10 @@ let state = {
   rumorsLowStock: null,
   rumorsNoReprint: null,
   rumorsOverprint: null,
-  notifications: []
+  notifications: [],
+  timer: null,
+  timerDisplay: null,
+  timeRemaining: 120, // 2 minutes in seconds
 };
 
 products.forEach(p => {
@@ -38,6 +41,10 @@ products.forEach(p => {
 
 let marketPrices = {};
 let marketStock = {};
+let selloutTimer;
+let selloutInterval;
+let remainingTime = 120; // seconds
+let timerPaused = false;
 
 buyLocations.concat(sellLocations).forEach(loc => {
   marketPrices[loc] = {};
@@ -124,6 +131,127 @@ function showNotification(message, type = "info") {
   setTimeout(() => {
     notification.remove();
   }, 4000);
+}
+// Function to create the timer display in the top-right corner
+function createTimerDisplay() {
+  // Remove existing timer display if any
+  if (state.timerDisplay) {
+    state.timerDisplay.remove();
+  }
+  
+  const timerDisplay = document.createElement("div");
+  timerDisplay.id = "timer-display";
+  timerDisplay.style.position = "fixed";
+  timerDisplay.style.top = "10px";
+  timerDisplay.style.right = "10px";
+  timerDisplay.style.backgroundColor = "#333";
+  timerDisplay.style.color = "#fff";
+  timerDisplay.style.padding = "8px 12px";
+  timerDisplay.style.borderRadius = "4px";
+  timerDisplay.style.fontSize = "16px";
+  timerDisplay.style.fontWeight = "bold";
+  timerDisplay.style.zIndex = "2000";
+  timerDisplay.style.boxShadow = "0 2px 5px rgba(0,0,0,0.2)";
+  
+  document.body.appendChild(timerDisplay);
+  state.timerDisplay = timerDisplay;
+  
+  updateTimerDisplay();
+}
+
+// Function to update the timer display
+function updateTimerDisplay() {
+  if (!state.timerDisplay) return;
+  
+  const minutes = Math.floor(state.timeRemaining / 60);
+  const seconds = state.timeRemaining % 60;
+  
+  state.timerDisplay.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+  
+  // Change color when time is running low
+  if (state.timeRemaining <= 30) {
+    state.timerDisplay.style.backgroundColor = "#d9534f";
+  } else {
+    state.timerDisplay.style.backgroundColor = "#333";
+  }
+}
+
+// Function to start the timer
+function startProductTimer() {
+  // Clear any existing timer
+  if (state.timer) {
+    clearInterval(state.timer);
+  }
+  
+  // Reset time
+  state.timeRemaining = 120;
+  
+  // Create or update timer display
+  createTimerDisplay();
+  
+  // Start countdown
+  state.timer = setInterval(() => {
+    state.timeRemaining--;
+    updateTimerDisplay();
+    
+    // When timer reaches zero
+    if (state.timeRemaining <= 0) {
+      clearInterval(state.timer);
+      randomlySellOutProducts();
+      
+      // Check if any products are still available
+      if (areProductsAvailable()) {
+        // Restart timer if products are still available
+        startProductTimer();
+      } else {
+        showNotification("All products are sold out at all locations!", "warning");
+      }
+    }
+  }, 1000);
+}
+// Function to check if any products are still available at any buy location
+function areProductsAvailable() {
+  let available = false;
+  
+  buyLocations.forEach(loc => {
+    products.forEach(p => {
+      if (marketStock[loc][p] > 0) {
+        available = true;
+      }
+    });
+  });
+  
+  return available;
+}
+
+// Function to randomly sell out products
+function randomlySellOutProducts() {
+  let soldOutMsg = "";
+  const newSoldOuts = [];
+  
+  buyLocations.forEach(loc => {
+    // For each location, randomly select 1-2 products to sell out
+    const numProductsToSellOut = Math.floor(Math.random() * 2) + 1;
+    const availableProducts = products.filter(p => marketStock[loc][p] > 0);
+    
+    if (availableProducts.length > 0) {
+      // Shuffle available products
+      const shuffled = [...availableProducts].sort(() => 0.5 - Math.random());
+      
+      // Select products to sell out
+      const productsToSellOut = shuffled.slice(0, Math.min(numProductsToSellOut, shuffled.length));
+      
+      productsToSellOut.forEach(p => {
+        marketStock[loc][p] = 0;
+        newSoldOuts.push(`${p} at ${loc}`);
+      });
+    }
+  });
+  
+  if (newSoldOuts.length > 0) {
+    showNotification(`⚠️ Products sold out: ${newSoldOuts.join(", ")}`, "warning");
+    render(); // Update the UI to reflect the changes
+  }
 }
 
 // Add CSS for animations
@@ -393,30 +521,7 @@ function sell(product) {
 }
 
 function travel(newLocation) {
-  const oldLocation = state.location;
-  if (oldLocation !== newLocation) {
-    // Only reduce stock if the old location is a buy location
-    if (buyLocations.includes(oldLocation)) {
-      let soldOutProducts = [];
-      
-      // Decrease product quantities at the old location by 0 to 5 units
-      products.forEach(product => {
-        if (marketStock[oldLocation][product] > 0) {
-          const reduction = Math.floor(Math.random() * 6); // 0 to 5
-          marketStock[oldLocation][product] = Math.max(0, marketStock[oldLocation][product] - reduction);
-          if (marketStock[oldLocation][product] === 0) {
-            soldOutProducts.push(product);
-          }
-        }
-      });
-      
-      if (soldOutProducts.length > 0) {
-        // Use notification instead of alert
-        showNotification(`After leaving ${oldLocation}, these products sold out: ${soldOutProducts.join(", ")}`, "warning");
-      }
-    }
-  }
-  
+  const oldLocation = state.location;  
   state.location = newLocation;
   showNotification(`Traveled to ${newLocation}`, "info");
   render();
@@ -684,10 +789,18 @@ function nextDay() {
       travel(newLocation);
     }
   }
-
+  
+  // Stop the current timer
+  if (state.timer) {
+    clearInterval(state.timer);
+  }
+  
   state.day++;
 
-  // Process pending deliveries
+  // Start a new timer
+  startProductTimer();
+
+// Process pending deliveries
   const arrivedDeliveries = [];
   state.deliveryQueue = state.deliveryQueue.filter(entry => {
     if (entry.arrivalDay <= state.day) {
@@ -884,6 +997,9 @@ function initializeGame() {
     });
   });
   showModalNotification(stockMsg, "Stock and Pricing info");
+  
+  // Start the timer
+  startProductTimer();
 }
 
 window.onload = () => {
