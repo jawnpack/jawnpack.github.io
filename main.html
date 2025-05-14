@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html>
-
-  <!-- Google tag (gtag.js) -->
+<!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-P03T25QFLT"></script>
 <script>
   window.dataLayer = window.dataLayer || [];
@@ -10,11 +9,13 @@
 
   gtag('config', 'G-P03T25QFLT');
 </script>
-
-  
 <head>
   <title>TCG Scalping Wars</title>
-  <link rel="stylesheet" href="css/gamestyle.css">
+  <link rel="stylesheet" href="style.css">
+  <!-- Firebase App (the core Firebase SDK) -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <!-- Firebase Database -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
 <body>
   <div class="container">
@@ -26,75 +27,111 @@
       <h3>Your Inventory</h3>
       <ul id="inventory-list"></ul>
     </div>
-
     <div>
       <h3>Rumors from your favorite content creator:</h3>
       <p id="rumor">None yet...</p>
     </div>
   </div>
-
-    <div class="locations">
-      <h3>Buy Locations</h3>
-      <button onclick="travel('Local Game Store')">Local Game Store</button>
-      <button onclick="travel('Cost-Mart')">Cost-Mart</button>
-      <button onclick="travel('eCommerce Store')">eCommerce Store</button>
-    </div>
-
-    <div class="locations">
-      <h3>Sell Locations</h3>
-      <button onclick="travel('The Marketplace')">The Marketplace</button>
-      <button onclick="travel('TCG Convention')">TCG Convention</button>
-    </div>
-
-    <div class="market-locations">
-      <h3>Market (<span id="market-location">Local Game Store</span>)</h3>
-      <table id="market-table">
+  
+  <div class="locations">
+    <h3>Buy Locations</h3>
+    <button onclick="travel('Local Game Store')">Local Game Store</button>
+    <button onclick="travel('Cost-Mart')">Cost-Mart</button>
+    <button onclick="travel('eCommerce Store')">eCommerce Store</button>
+  </div>
+  
+  <div class="locations">
+    <h3>Sell Locations</h3>
+    <button onclick="travel('The Marketplace')">The Marketplace</button>
+    <button onclick="travel('TCG Convention')">TCG Convention</button>
+  </div>
+  
+  <div class="market-locations">
+    <h3>Market (<span id="market-location">Local Game Store</span>)</h3>
+    <table id="market-table">
+      <!-- Populated dynamically -->
+    </table>
+  </div>
+  
+  <div class="online-store">
+    <h3>Online Store Listings</h3>
+    <form onsubmit="event.preventDefault(); createListing();">
+      <select id="listing-product"></select>
+      <input type="number" id="listing-price" placeholder="Price" step="0.01">
+      <input type="number" id="listing-quantity" placeholder="Quantity">
+      <button type="submit">List</button>
+    </form>
+    <table id="listing-table">
+      <thead>
+        <tr>
+          <th>Product</th>
+          <th>Price</th>
+          <th>Quantity</th>
+        </tr>
+      </thead>
+      <tbody>
         <!-- Populated dynamically -->
-      </table>
-    </div>
-
-    <div class="online-store">
-      <h3>Online Store Listings</h3>
-      <form onsubmit="event.preventDefault(); createListing();">
-        <select id="listing-product"></select>
-        <input type="number" id="listing-price" placeholder="Price" step="0.01">
-        <input type="number" id="listing-quantity" placeholder="Quantity">
-        <button type="submit">List</button>
-      </form>
-      <table id="listing-table">
-        <thead>
-          <tr>
-            <th>Product</th>
-            <th>Price</th>
-            <th>Quantity</th>
-          </tr>
-        </thead>
-        <tbody>
-          <!-- Populated dynamically -->
-        </tbody>
-      </table>
-
-      <h4>Manage Listings</h4>
-      <table id="online-listings-table">
-        <thead>
-          <tr>
-            <th>Product</th>
-            <th>Qty</th>
-            <th>Price</th>
-            <th>Days Listed</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody id="online-listings-body">
-          <!-- Filled dynamically -->
-        </tbody>
-      </table>
-    </div>
+      </tbody>
+    </table>
+    <h4>Manage Listings</h4>
+    <table id="online-listings-table">
+      <thead>
+        <tr>
+          <th>Product</th>
+          <th>Qty</th>
+          <th>Price</th>
+          <th>Days Listed</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="online-listings-body">
+        <!-- Filled dynamically -->
+      </tbody>
+    </table>
+  </div>
 
   <div class="next-day">
     <button onclick="nextDay()">Next Day</button>
   </div>
 
-  <script src="js/game.js"></script>
+  <!-- Leaderboard Modal -->
+  <div id="leaderboard-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <h2>Game Over!</h2>
+      <p>Your final stats:</p>
+      <div id="final-stats">
+        <p>Money: $<span id="final-money">0.00</span></p>
+        <p>Days played: <span id="final-days">0</span></p>
+        <p>Total quantity bought: <span id="final-bought">0</span></p>
+        <p>Total quantity sold: <span id="final-sold">0</span></p>
+      </div>
+      <div id="leaderboard-form">
+        <p>Enter your initials (up to 3 characters):</p>
+        <input type="text" id="player-initials" maxlength="3" placeholder="ABC">
+        <button id="submit-score">Submit Score</button>
+      </div>
+      <div id="leaderboard-display" style="display: none;">
+        <h3>Top Players</h3>
+        <table id="leaderboard-table">
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>Player</th>
+              <th>Money</th>
+              <th>Days</th>
+              <th>Bought</th>
+              <th>Sold</th>
+            </tr>
+          </thead>
+          <tbody id="leaderboard-body">
+            <!-- Populated dynamically -->
+          </tbody>
+        </table>
+        <button id="play-again">Play Again</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
 </body>
 </html>
