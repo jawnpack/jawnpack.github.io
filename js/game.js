@@ -1,5 +1,21 @@
 // game.js
 
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyBGUqKLyes3vGlx0KXWZXC59LkpKIakcZw",
+  authDomain: "tcg-scalper-leaderboard.firebaseapp.com",
+  projectId: "tcg-scalper-leaderboard",
+  storageBucket: "tcg-scalper-leaderboard.firebasestorage.app",
+  messagingSenderId: "85796303216",
+  appId: "1:85796303216:web:d8cf90e3fb9c16a54f1fb5",
+  measurementId: "G-P03T25QFLT"
+};
+
+// Initialize Firebase
+firebase.initializeApp(firebaseConfig);
+const database = firebase.database();
+
 const products = [
   "The Base Set",
   "The Nostalgia Set",
@@ -45,6 +61,11 @@ let selloutTimer;
 let selloutInterval;
 let remainingTime = 120; // seconds
 let timerPaused = false;
+// Game statistics tracking
+let gameStats = {
+  totalBought: 0,
+  totalSold: 0
+};
 
 buyLocations.concat(sellLocations).forEach(loc => {
   marketPrices[loc] = {};
@@ -132,6 +153,74 @@ function showNotification(message, type = "info") {
     notification.remove();
   }, 4000);
 }
+
+// Add these style rules for the modal
+function addModalStyles() {
+  const style = document.createElement('style');
+  style.textContent = `
+    .modal {
+      position: fixed;
+      top: 50;
+      left: 50;
+      width: 80%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.7);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 3000;
+    }
+    
+    .modal-content {
+      background-color: white;
+      padding: 20px;
+      border-radius: 5px;
+      width: 80%;
+      max-width: 500px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+    
+    #leaderboard-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+      margin-bottom: 15px;
+    }
+    
+    #leaderboard-table th, #leaderboard-table td {
+      padding: 8px;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+    }
+    
+    #leaderboard-table th {
+      background-color: #f2f2f2;
+    }
+    
+    #player-initials {
+      padding: 8px;
+      margin-right: 10px;
+      font-size: 16px;
+    }
+    
+    #submit-score, #play-again {
+      padding: 8px 16px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-top: 10px;
+    }
+    
+    #submit-score:hover, #play-again:hover {
+      background-color: #45a049;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 // Function to create the timer display in the top-right corner
 function createTimerDisplay() {
   // Remove existing timer display if any
@@ -275,12 +364,10 @@ function createListing() {
   const product = document.getElementById("listing-product").value;
   const price = parseFloat(document.getElementById("listing-price").value);
   const quantity = parseInt(document.getElementById("listing-quantity").value);
-
   if (!product || isNaN(price) || isNaN(quantity) || quantity <= 0 || state.inventory[product] < quantity) {
     showNotification("Invalid listing.", "error");
     return;
   }
-
   state.inventory[product] -= quantity;
   const listing = {
     product,
@@ -288,7 +375,6 @@ function createListing() {
     quantity,
     days: 0
   };
-
   state.onlineListings.push(listing);
   showNotification(`Created listing for ${quantity}x ${product} at $${price}`, "success");
   
@@ -480,6 +566,9 @@ function buy(product) {
     state.money -= price;
     marketStock[state.location][product]--;
 
+    // Track the purchase
+    gameStats.totalBought++;
+    
     if (state.location === "eCommerce Store") {
       state.deliveryQueue.push({ product, quantity: 1, arrivalDay: state.day + 3 });
       showNotification(`Bought ${product} for $${price}. Will be delivered in 3 days.`, "success");
@@ -509,6 +598,10 @@ function sell(product) {
   if (state.inventory[product] > 0) {
     state.money += price;
     state.inventory[product]--;
+        
+    // Track the sale
+    gameStats.totalSold++;
+    
     showNotification(`Sold ${product} for $${price}`, "success");
     
     // Show green checkmark
@@ -686,8 +779,8 @@ function showModalNotification(message, title = "Notification") {
     modalContainer = document.createElement("div");
     modalContainer.id = "modal-container";
     modalContainer.style.position = "fixed";
-    modalContainer.style.top = "50";
-    modalContainer.style.left = "50";
+    modalContainer.style.top = "0";
+    modalContainer.style.left = "0";
     modalContainer.style.width = "100%";
     modalContainer.style.height = "100%";
     modalContainer.style.backgroundColor = "rgba(0, 0, 0, 0.5)";
@@ -776,11 +869,11 @@ function generateWelcomeMessage() {
 }
 
 function nextDay() {
-  if (state.day >= 30) {
-    showNotification(`Game Over! You ended with $${state.money.toFixed(2)}.`, "info");
+  if (state.day >= 30 || state.money <= 0) {
+    showGameOverModal();
     return;
   }
-
+  
   // Get the selected location before moving to the next day
   const locationSelect = document.getElementById("location-select");
   if (locationSelect) {
@@ -814,13 +907,37 @@ function nextDay() {
   if (arrivedDeliveries.length > 0) {
     showNotification(`Deliveries arrived: ${arrivedDeliveries.join(", ")}`, "success");
   }
+  
+  // Update the Online Listings Auto-Sell to track sales
+  const soldListings = [];
+  for (let i = state.onlineListings.length - 1; i >= 0; i--) {
+    const listing = state.onlineListings[i];
+    listing.days = (listing.days || 0) + 1;
+    const history = state.priceHistory[listing.product].slice(-3);
+    const avgPrice = history.length > 0 ? history.reduce((a, b) => a + b, 0) / history.length : listing.price;
+    if (listing.price <= avgPrice * 3 && Math.random() < 0.25) {
+      state.money += listing.price * listing.quantity;
+      
+      // Track the sales from listings
+      gameStats.totalSold += listing.quantity;
+      
+      soldListings.push(listing);
+      state.onlineListings.splice(i, 1);
+    } else if (listing.days >= 5) {
+      showNotification(`Your listing for ${listing.product} has not sold after 5 days. Consider withdrawing it.`, "warning");
+    }
+  }
 
+  // The rest of your existing nextDay function code...
+  // [Retaining all existing code below this point]
+  
   // Reduce quantity at old location (0-5 units per product)
   if (buyLocations.includes(state.location)) {
     products.forEach(p => {
       marketStock[state.location][p] = Math.max(0, marketStock[state.location][p] - Math.floor(Math.random() * 6));
     });
   }
+  
   // Refresh prices and quantities
   buyLocations.concat(sellLocations).forEach(loc => {
     products.forEach(p => {
@@ -832,9 +949,7 @@ function nextDay() {
       } else {
         priceRange = state.day <= 15 ? [120, 300] : [200, 500];
       }
-
       let basePrice = Math.floor(Math.random() * (priceRange[1] - priceRange[0] + 1)) + priceRange[0];
-
       // Adjust price based on location behavior
       if (loc === "Local Game Store") {
         basePrice = Math.round(basePrice * ((Math.random() * 0.1) + 0.95)); // small fluctuation
@@ -843,9 +958,7 @@ function nextDay() {
       } else if (loc === "eCommerce Store") {
         basePrice = Math.round(basePrice * ((Math.random() * 0.5) + 0.75)); // volatile
       }
-
       marketPrices[loc][p] = Math.max(10, basePrice);
-
       // Adjust stock based on location
       if (loc === "Local Game Store") {
         marketStock[loc][p] = Math.floor(Math.random() * 6) + 10; // more consistent
@@ -854,7 +967,6 @@ function nextDay() {
       } else if (loc === "eCommerce Store") {
         marketStock[loc][p] = Math.floor(Math.random() * 15);     // volatile
       }
-
       if (buyLocations.includes(loc)) {
         state.priceHistory[p].push(marketPrices[loc][p]);
         if (state.priceHistory[p].length > 90) {
@@ -863,7 +975,6 @@ function nextDay() {
       }
     });
   });
-  
   
   // Enforce $1 gap between buy/sell
   products.forEach(p => {
@@ -874,33 +985,14 @@ function nextDay() {
       }
     });
   });
-
+  
   // Generate rumor and apply effects
   generateRumor();
   applyRumorEffectsToMarket();
-
-  // === Online Listings Auto-Sell ===
-  const soldListings = [];
-  for (let i = state.onlineListings.length - 1; i >= 0; i--) {
-    const listing = state.onlineListings[i];
-    listing.days = (listing.days || 0) + 1;
-
-    const history = state.priceHistory[listing.product].slice(-3);
-    const avgPrice = history.length > 0 ? history.reduce((a, b) => a + b, 0) / history.length : listing.price;
-
-    if (listing.price <= avgPrice * 3 && Math.random() < 0.25) {
-      state.money += listing.price * listing.quantity;
-      soldListings.push(listing);
-      state.onlineListings.splice(i, 1);
-    } else if (listing.days >= 5) {
-      showNotification(`Your listing for ${listing.product} has not sold after 5 days. Consider withdrawing it.`, "warning");
-    }
-  }
-
-
+  
   // === Buy location stock notification with prices ===
   showModalNotification(generateStockUpdateMessage(), "Stock and Pricing info");
-
+  
   // === Notify if anything is sold out ===
   // Track previously sold out products
   if (!state.previouslySoldOut) {
@@ -909,7 +1001,7 @@ function nextDay() {
       state.previouslySoldOut[p] = new Set();
     });
   }
-
+  
   let soldOutMsg = "";
   let newSoldOuts = 0;
   products.forEach(p => {
@@ -924,13 +1016,126 @@ function nextDay() {
   
   // Only show notification if there are NEW soldouts
   if (newSoldOuts > 0) showNotification(soldOutMsg.trim(), "warning");
-
+  
   // Update rumor display and re-render
   document.getElementById("rumor").textContent = state.rumor;
   showNotification(`Day ${state.day}: ${state.rumor}`, "info");
   render();
   renderOnlineListings();
+  
+  // Check for game over after all day operations
+  if (state.day >= 30 || state.money <= 0) {
+    setTimeout(() => {
+      showGameOverModal();
+    }, 500);
   }
+}
+
+// Display the game over modal with leaderboard form
+function showGameOverModal() {
+  // Stop the timer if it's running
+  if (state.timer) {
+    clearInterval(state.timer);
+  }
+  
+  // Update the final stats
+  document.getElementById("final-money").textContent = state.money.toFixed(2);
+  document.getElementById("final-days").textContent = state.day;
+  document.getElementById("final-bought").textContent = gameStats.totalBought;
+  document.getElementById("final-sold").textContent = gameStats.totalSold;
+  
+  // Show the leaderboard modal
+  document.getElementById("leaderboard-modal").style.display = "flex";
+  
+  // Focus on the initials input
+  setTimeout(() => {
+    document.getElementById("player-initials").focus();
+  }, 300);
+  
+  // Add event listeners for form submission
+  document.getElementById("submit-score").addEventListener("click", submitScore);
+  document.getElementById("play-again").addEventListener("click", playAgain);
+}
+
+// Submit the score to Firebase
+function submitScore() {
+  const initials = document.getElementById("player-initials").value.trim();
+  
+  if (!initials) {
+    showNotification("Please enter your initials!", "error");
+    return;
+  }
+  
+  const scoreData = {
+    initials: initials,
+    money: state.money,
+    days: state.day,
+    bought: gameStats.totalBought,
+    sold: gameStats.totalSold,
+    timestamp: firebase.database.ServerValue.TIMESTAMP
+  };
+  
+  // Push to Firebase
+  database.ref('leaderboard').push(scoreData)
+    .then(() => {
+      showNotification("Score submitted successfully!", "success");
+      document.getElementById("leaderboard-form").style.display = "none";
+      displayLeaderboard();
+    })
+    .catch(error => {
+      console.error("Error submitting score:", error);
+      showNotification("Error submitting score. Please try again.", "error");
+    });
+}
+
+// Display the leaderboard from Firebase
+function displayLeaderboard() {
+  const leaderboardBody = document.getElementById("leaderboard-body");
+  leaderboardBody.innerHTML = '<tr><td colspan="6">Loading leaderboard...</td></tr>';
+  
+  document.getElementById("leaderboard-display").style.display = "block";
+  
+  // Fetch top 10 scores sorted by money
+  database.ref('leaderboard')
+    .orderByChild('money')
+    .limitToLast(10)
+    .once('value')
+    .then(snapshot => {
+      const scores = [];
+      snapshot.forEach(childSnapshot => {
+        scores.push(childSnapshot.val());
+      });
+      
+      // Sort by money (highest first)
+      scores.sort((a, b) => b.money - a.money);
+      
+      // Update the leaderboard table
+      leaderboardBody.innerHTML = '';
+      scores.forEach((score, index) => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${index + 1}</td>
+          <td>${score.initials}</td>
+          <td>$${score.money.toFixed(2)}</td>
+          <td>${score.days}</td>
+          <td>${score.bought}</td>
+          <td>${score.sold}</td>
+        `;
+        leaderboardBody.appendChild(row);
+      });
+    })
+    .catch(error => {
+      console.error("Error fetching leaderboard:", error);
+      leaderboardBody.innerHTML = '<tr><td colspan="6">Error loading leaderboard</td></tr>';
+    });
+}
+
+// Restart the game
+function playAgain() {
+  document.getElementById("leaderboard-modal").style.display = "none";
+  initializeGame();
+}
+
 
 // Initialize the game on day 1 
 function initializeGame() {
@@ -938,6 +1143,13 @@ function initializeGame() {
   
   // Add notification styles
   addNotificationStyles();
+  addModalStyles();
+  
+  // Reset game stats
+  gameStats = {
+    totalBought: 0,
+    totalSold: 0
+  };  
   
   // Create notification container
   const notifContainer = document.createElement("div");
@@ -987,7 +1199,7 @@ function initializeGame() {
   initializeRumorSystem();
   
   render();
-  generateWelcomeMessage()
+  
   // Initial Stock info as notification
   let stockMsg = "Welcome Scalper! Here is the initial stock:<br>";
   buyLocations.forEach(loc => {
