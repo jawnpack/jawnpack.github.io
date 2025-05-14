@@ -846,10 +846,11 @@ function showModalNotification(message, title = "Notification") {
 function generateStockUpdateMessage() {
   let stockMsg = "<h4>Buy Location Stock Update</h4>";
   buyLocations.forEach(loc => {
-    stockMsg += `<br><strong>${loc}:</strong><br>`;
+    stockMsg += `<p><strong>${loc}:</strong></p><ul style="margin-top: 5px;">`;
     products.forEach(p => {
-      stockMsg += `&nbsp;&nbsp;${p}: ${marketStock[loc][p]} units @ $${marketPrices[loc][p]}<br>`;
+      stockMsg += `<li>${p}: ${marketStock[loc][p]} units @ $${marketPrices[loc][p]}</li>`;
     });
+    stockMsg += "</ul>";
   });
   return stockMsg;
 }
@@ -858,10 +859,11 @@ function generateStockUpdateMessage() {
 function generateWelcomeMessage() {
   let stockMsg = "<h4>Welcome to the game!</h4><p>Here is the initial stock:</p>";
   buyLocations.forEach(loc => {
-    stockMsg += `<br><strong>${loc}:</strong><br>`;
+    stockMsg += `<p><strong>${loc}:</strong></p><ul style="margin-top: 5px;">`;
     products.forEach(p => {
-      stockMsg += `&nbsp;&nbsp;${p}: ${marketStock[loc][p]} units @ $${marketPrices[loc][p]}<br>`;
+      stockMsg += `<li>${p}: ${marketStock[loc][p]} units @ $${marketPrices[loc][p]}</li>`;
     });
+    stockMsg += "</ul>";
   });
   return stockMsg;
 }
