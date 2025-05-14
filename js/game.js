@@ -989,14 +989,14 @@ function initializeGame() {
   render();
   generateWelcomeMessage()
   // Initial Stock info as notification
-  let stockMsg = "Welcome to the game! Here is the initial stock:<br>";
+  let stockMsg = "Welcome Scalper! Here is the initial stock:<br>";
   buyLocations.forEach(loc => {
-    stockMsg += `<strong>${loc}:</strong><br>`;
+    stockMsg += `<br><strong>${loc}:</strong><br>`;
     products.forEach(p => {
       stockMsg += `&nbsp;&nbsp;${p}: ${marketStock[loc][p]} units @ $${marketPrices[loc][p]}<br>`;
     });
   });
-  showModalNotification(stockMsg, "Stock and Pricing info");
+  showModalNotification(stockMsg,"");
   
   // Start the timer
   startProductTimer();
